@@ -4,6 +4,7 @@ import { render } from "ink-testing-library";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { App } from "../../src/tui/App.js";
+import { REGISTRY } from "../../src/patches/registry.js";
 import { cleanup, copyFixtureInstall, tmpDir } from "../engine/helpers.js";
 
 const dirs: string[] = [];
@@ -124,6 +125,23 @@ describe("tui App", () => {
       readFileSync(path.join(root, "cli-config.json"), "utf8"),
     ) as Record<string, unknown>;
     expect(cliCfg.disableAutoUpdate).toBe(true);
+    unmount();
+  });
+
+  it("menu patch count matches the toggles screen (defaults included)", async () => {
+    const { install, home, env } = sandbox();
+    const { lastFrame, stdin, unmount } = render(
+      <App env={env} home={home} installPath={install.path} />,
+    );
+    await tick(150);
+    const expected = REGISTRY.filter((e) => e.defaultEnabled).length;
+    expect(lastFrame()).toContain(`${expected} enabled`);
+
+    // menu -> Patches: number of checked rows must equal the menu count
+    stdin.write("\r");
+    await tick();
+    const checked = ((lastFrame() ?? "").match(/\[x\]/g) ?? []).length;
+    expect(checked).toBe(expected);
     unmount();
   });
 });

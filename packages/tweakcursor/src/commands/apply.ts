@@ -5,7 +5,7 @@ import { detectInstallation } from "../engine/discovery.js";
 import { applyPatches } from "../engine/patcher.js";
 import { smokeTest } from "../engine/verify.js";
 import { isVerified, unverifiedWarning } from "../engine/versionGate.js";
-import { getEntry, REGISTRY } from "../patches/registry.js";
+import { enabledPatches, getEntry } from "../patches/registry.js";
 import type { Patch } from "../types.js";
 import { DEFAULT_CONFIG, readConfig, writeConfig, type TweakcursorConfig } from "../config.js";
 import { log, loudUnverified, printChanges } from "../ui/log.js";
@@ -53,7 +53,7 @@ function selectPatches(cfg: TweakcursorConfig, ids: string[] | undefined, versio
         if (!entry) return `unknown patch id: ${id}`;
         return entry;
       })
-    : REGISTRY.filter((e) => cfg.patches[e.id]?.enabled ?? e.defaultEnabled);
+    : enabledPatches(cfg);
   const bad = entries.find((e): e is string => typeof e === "string");
   if (bad) return bad;
   return (entries as Exclude<(typeof entries)[number], string>[]).map((e) =>

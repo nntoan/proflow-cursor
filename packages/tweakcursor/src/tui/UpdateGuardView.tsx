@@ -7,6 +7,7 @@ import {
   type CliConfig,
 } from "../engine/cliConfig.js";
 import type { TweakcursorConfig } from "../config.js";
+import { getEntry, isPatchEnabled } from "../patches/registry.js";
 import { Header, Menu } from "./ui.js";
 
 export function UpdateGuardView({
@@ -35,7 +36,8 @@ export function UpdateGuardView({
 
   const disableAutoUpdate = cliCfg.disableAutoUpdate === true;
   const channelStatic = cliCfg.channel === "static";
-  const warnEnabled = config.patches["update-guard"]?.enabled ?? true;
+  const guardEntry = getEntry("update-guard");
+  const warnEnabled = guardEntry ? isPatchEnabled(config, guardEntry) : true;
 
   const write = (updates: CliConfig): void => {
     setCliCfg(writeCliConfig(updates, path));

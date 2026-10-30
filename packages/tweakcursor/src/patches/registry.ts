@@ -1,3 +1,4 @@
+import type { TweakcursorConfig } from "../config.js";
 import type { Patch } from "../types.js";
 
 /** Version every built-in was anchor-verified against (posture B: others still attempted). */
@@ -202,4 +203,17 @@ export const REGISTRY: RegistryEntry[] = [
 
 export function getEntry(id: string): RegistryEntry | undefined {
   return REGISTRY.find((e) => e.id === id);
+}
+
+/** Effective enabled state: explicit config wins, else the registry default. */
+export function isPatchEnabled(
+  cfg: Pick<TweakcursorConfig, "patches">,
+  entry: RegistryEntry,
+): boolean {
+  return cfg.patches[entry.id]?.enabled ?? entry.defaultEnabled;
+}
+
+/** Single source of truth for "which patches are on" (menu count, toggles, apply). */
+export function enabledPatches(cfg: Pick<TweakcursorConfig, "patches">): RegistryEntry[] {
+  return REGISTRY.filter((e) => isPatchEnabled(cfg, e));
 }

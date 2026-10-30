@@ -6,7 +6,7 @@ import type { Installation } from "../engine/discovery.js";
 import { applyPatches } from "../engine/patcher.js";
 import { smokeTest } from "../engine/verify.js";
 import { isVerified } from "../engine/versionGate.js";
-import { REGISTRY } from "../patches/registry.js";
+import { enabledPatches } from "../patches/registry.js";
 import { writeConfig, type TweakcursorConfig } from "../config.js";
 import { Header } from "./ui.js";
 
@@ -28,7 +28,7 @@ export async function runApply(
     onLine(line);
   };
 
-  const patches = REGISTRY.filter((e) => config.patches[e.id]?.enabled ?? e.defaultEnabled).map((e) =>
+  const patches = enabledPatches(config).map((e) =>
     e.build({ version: install.version, options: config.patches[e.id]?.options ?? {} }),
   );
   if (patches.length === 0) {

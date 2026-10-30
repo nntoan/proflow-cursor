@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text, useInput } from "ink";
 import type { TweakcursorConfig } from "../config.js";
-import { REGISTRY, VERIFIED_VERSION } from "../patches/registry.js";
+import { isPatchEnabled, REGISTRY, VERIFIED_VERSION } from "../patches/registry.js";
 import { Header, Menu } from "./ui.js";
 
 export function PatchToggles({
@@ -22,7 +22,7 @@ export function PatchToggles({
   const toggle = (id: string): void => {
     const entry = REGISTRY.find((e) => e.id === id);
     if (!entry) return;
-    const current = config.patches[id]?.enabled ?? entry.defaultEnabled;
+    const current = isPatchEnabled(config, entry);
     onChange({
       ...config,
       patches: {
@@ -45,7 +45,7 @@ export function PatchToggles({
       />
       <Menu
         items={REGISTRY.map((e) => {
-          const enabled = config.patches[e.id]?.enabled ?? e.defaultEnabled;
+          const enabled = isPatchEnabled(config, e);
           return {
             value: e.id,
             label: `[${enabled ? "x" : " "}] ${e.id}`,

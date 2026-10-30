@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text, useInput } from "ink";
 import type { Installation } from "../engine/discovery.js";
 import type { TweakcursorConfig } from "../config.js";
+import { enabledPatches } from "../patches/registry.js";
 import { Header, Menu } from "./ui.js";
 
 export type MenuChoice =
@@ -28,7 +29,7 @@ export function MainMenu({
   useInput((input) => {
     if (input === "q") onExit();
   });
-  const enabled = Object.values(config.patches).filter((p) => p.enabled).length;
+  const enabled = enabledPatches(config).length;
   return (
     <Box flexDirection="column">
       <Header
