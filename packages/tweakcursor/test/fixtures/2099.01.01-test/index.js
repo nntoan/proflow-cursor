@@ -3,6 +3,7 @@
 // Anchor strings mimic the real bundle's shape so patch fixtures stay honest.
 var s={importThirdPartyPlugins:!0,loadUserLocalPlugins:!0,loadCursorFirstParty:!0};
 function loadPlugins(){var a=s.importThirdPartyPlugins,o=s.loadUserLocalPlugins??!0,c=s.loadCursorFirstParty??!0;if(!a&&!c&&!o)return[];return["alpha","beta"]}
+var SCAN=[[".cursor","skills"],[".cursor","skills-cursor"],[".claude","skills"],[".claude","plugins"],[".codex","skills"],[".grok","skills"],[".agents","skills"],[".cursor","plugins"]];
 var svc={currentImportSettings:{importThirdPartyPlugins:!0}};
 function agentSkills(){var t=[{identifier:{source:"claude-plugin"}},{identifier:{source:"cursor"}}];svc.currentImportSettings.importThirdPartyPlugins||(t=t.filter((function(t){return"claude-plugin"!==t.identifier.source})));return t}
 var COLORS={green:"[32m",red:"[31m",yellow:"[33m",reset:"[0m",cyan:"[36m",magenta:"[35m",gray:"[90m",gray256:"ansi256(245)"};

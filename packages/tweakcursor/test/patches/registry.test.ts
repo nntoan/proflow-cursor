@@ -46,7 +46,7 @@ describe("registry contract", () => {
 });
 
 describe("disable-third-party-plugins", () => {
-  it("rewrites all three gate sites on the fixture", () => {
+  it("rewrites all four gate sites on the fixture", () => {
     const inst = mkInst();
     const report = applyOne("disable-third-party-plugins", inst);
     expect(report.status).toBe("applied");
@@ -54,6 +54,11 @@ describe("disable-third-party-plugins", () => {
     expect(index).toContain(".importThirdPartyPlugins&&!1||(");
     expect(index).toContain("a=!1,");
     expect(index).not.toContain("a=s.importThirdPartyPlugins,");
+    // home scan list: third-party dirs dropped, .cursor dirs and .agents kept
+    expect(index).not.toContain('[".claude","skills"]');
+    expect(index).not.toContain('[".codex","skills"]');
+    expect(index).toContain('[".agents","skills"]');
+    expect(index).toContain('[".cursor","skills"]');
     const headless = readFileSync(path.join(inst.path, "3863.index.js"), "utf8");
     expect(headless).toContain("he=!1");
   });

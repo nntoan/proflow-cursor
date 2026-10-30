@@ -25,7 +25,7 @@ function base(id: string, description: string): Pick<Patch, "id" | "description"
 /** disable-third-party-plugins: force importThirdPartyPlugins false at every gate. */
 const disableThirdPartyPlugins: RegistryEntry = {
   id: "disable-third-party-plugins",
-  description: "Never import third-party (claude/codex/grok/agents) plugins or skills",
+  description: "Never import third-party (claude/codex/grok) plugins or skills (.agents kept)",
   defaultEnabled: true,
   build: () => ({
     ...base("disable-third-party-plugins", "Force importThirdPartyPlugins false"),
@@ -44,6 +44,15 @@ const disableThirdPartyPlugins: RegistryEntry = {
             kind: "regex",
             find: /([a-zA-Z$_])=[a-zA-Z$_]+\.importThirdPartyPlugins,/,
             replace: "$1=!1,",
+          },
+          // user-local home scan list: drop third-party dirs (.claude skills+plugins,
+          // .codex, .grok) — keep .cursor dirs and .agents (harness interop).
+          // This list is NOT gated by importThirdPartyPlugins; without this edit,
+          // ~/.claude/skills commands (e.g. /gsd-*) still surface in the CLI.
+          {
+            kind: "string",
+            find: '[".claude","skills"],[".claude","plugins"],[".codex","skills"],[".grok","skills"],',
+            replace: "",
           },
         ],
       },
