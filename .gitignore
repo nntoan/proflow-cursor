@@ -1,0 +1,23 @@
+node_modules/
+dist/
+*.tgz
+test/.local-fixtures/
+.tweakcursor-test/
+.DS_Store
+.omc/
+
+# Proflow Harness
+plans/
+tasks/
+docs/*/*
+docs/research/
+docs/spec/*/*
+docs/specs/*/*
+!docs/*/SPEC.md
+!docs/spec/*/
+!docs/spec/*/SPEC.md
+!docs/specs/*.md
+!docs/specs/*/
+!docs/specs/*/SPEC.md
+!docs/releases/*.md
+!docs/tweakcursor/PLAN.md
