@@ -1,6 +1,6 @@
 {
   "name": "tweakcursor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Customize and patch the shipped cursor-agent CLI: disable third-party plugin imports, themes, update guard, adhoc patches. Unofficial, not affiliated with Anysphere.",
   "type": "module",
   "bin": {
