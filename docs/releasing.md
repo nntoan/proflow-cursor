@@ -4,11 +4,11 @@ Runbook for the **initial release** of any workspace package to npm. Follow top 
 bottom; check boxes in a tracking issue or the release notes. For subsequent
 releases of an already-published package, skip to [Phase C](#phase-c--ship).
 
-Current state of this repo: the remote exists (`nntoan/proflow-cursor`, public)
-with `main` pushed, and the release mechanism is ported from `nntoan/proflow`
-(tag → generated notes + GitHub release → OIDC publish). No tag has been pushed
-yet, and the npm trusted publisher is not configured — Phases B–C remain
-mandatory.
+Current state of this repo: fully operational. `nntoan/proflow-cursor` (public),
+trusted publisher working (0.1.1 published over OIDC with provenance),
+`tweakcursor` live on npm (0.1.0, 0.1.1), GitHub releases `v0.1.0` and `v0.1.1`
+created with generated notes. For the next release go straight to
+[Phase C](#phase-c--ship).
 
 ---
 
@@ -16,10 +16,10 @@ mandatory.
 
 - [x] **Create the git remote** and push `main` — done: `nntoan/proflow-cursor`
       (public).
-- [ ] **Configure the npm trusted publisher** (OIDC — there is deliberately no
-      `NPM_TOKEN` in this repo). Requires the package to exist first (Phase B
-      squat publish), then on npmjs.com: package → Settings → **Trusted
-      publishing** → GitHub Actions:
+- [x] **Configure the npm trusted publisher** (OIDC — there is deliberately no
+      `NPM_TOKEN` in this repo) — done; proven by the 0.1.1 CI publish with
+      sigstore provenance. For future packages, on npmjs.com: package →
+      Settings → **Trusted publishing** → GitHub Actions:
 
   | Field | Value |
   | --- | --- |
@@ -124,6 +124,24 @@ Run for the package being released (`{pkg}` = workspace name, e.g. `tweakcursor`
 - [ ] The GitHub release is auto-created with generated notes; record any
       curated deep-dive in `docs/releases/v{version}.md` (see `v0.1.0.md`).
 - [ ] Close/label the tracking issue; note follow-ups for the next milestone.
+
+## Troubleshooting
+
+- **Retroactive tag on a pre-mechanism tree**: a tag push runs the workflow
+  file *from the tagged commit*. Tagging a commit older than the two-job
+  `release.yml` executes whatever release workflow that tree contains (the old
+  one fails with "cannot publish over the previously published versions" and
+  creates no GitHub release). The tag itself is still correct — create the
+  GitHub release by hand:
+  ```bash
+  node scripts/changelog.mjs --to v{version} --output /tmp/notes.md
+  gh release create v{version} --title "v{version}" --notes-file /tmp/notes.md --verify-tag
+  ```
+- **`npm view` 404 right after a CI publish**: the registry accepted the
+  tarball (`+ {pkg}@{version}` in the publish log) but post-publish processing
+  holds it for minutes, and the CDN caches the early miss. Rule out a
+  stage-only trusted publisher with `npm stage list {pkg}` — empty means it is
+  just processing.
 
 ## Kill switch
 
