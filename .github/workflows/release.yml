@@ -1,25 +1,112 @@
-name: release
+name: Release
+
+# Triggered by a tag push — the tag names the release. Two deliberately separate
+# jobs (mechanism ported from nntoan/proflow):
+#
+#   release   always runs: it builds the notes from the conventional commits
+#             between the previous tag and this one, and creates the GitHub
+#             release. A *retroactive* tag (backfilling a release that predates
+#             this workflow) is handled here too.
+#   publish   runs only when the tag matches packages/tweakcursor's package.json
+#             version, i.e. for a release of the current tree, over npm trusted
+#             publishing (OIDC) — there is no NPM_TOKEN anywhere in this repository.
+#
+# Trusted-publisher setup is in docs/releasing.md.
 
 on:
   push:
-    tags: ["v*"]
+    tags: ['v*']
 
 permissions:
-  id-token: write # OIDC trusted publisher
   contents: read
 
 jobs:
-  publish:
+  release:
+    name: GitHub release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    outputs:
+      publishable: ${{ steps.check.outputs.publishable }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: "24"
-          registry-url: https://registry.npmjs.org
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck -w tweakcursor
-      - run: npm test -w tweakcursor
-      - run: npm run build -w tweakcursor
-      - run: npm publish -w tweakcursor --provenance --access public
+          fetch-depth: 0 # the changelog needs the full history and the previous tag
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Is this tag the current version?
+        id: check
+        run: |
+          version=$(node -p "require('./packages/tweakcursor/package.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" = "$version" ]; then
+            echo "publishable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publishable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$GITHUB_REF_NAME is a retroactive tag (the tree is at $version) — creating the release only, not publishing."
+          fi
+
+      - name: Build the release notes from the commits
+        run: node scripts/changelog.mjs --to "$GITHUB_REF_NAME" --output RELEASE_NOTES.md
+
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: RELEASE_NOTES.md
+
+  publish:
+    name: Publish to npm
+    needs: release
+    if: needs.release.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC — exchanged for a short-lived publish token
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Node 24 bundles npm 11. Trusted publishing needs npm >= 11.5.1 and Node >= 22.14.
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          # No `cache:` input on purpose: caching in setup-node is opt-in, and a
+          # release build must not restore one.
+
+      - name: npm must support trusted publishing
+        run: |
+          npm --version
+          node -e "const v=process.argv[1].split('.').map(Number); if (v[0]<11 || (v[0]===11 && v[1]<5)) { console.error('npm '+process.argv[1]+' is too old — trusted publishing needs >= 11.5.1'); process.exit(1) }" "$(npm --version)"
+
+      - name: Install workspaces
+        run: npm ci
+
+      - name: Verify
+        run: |
+          npm run typecheck -w tweakcursor
+          npm run build -w tweakcursor
+          npm test -w tweakcursor
+
+      # `--provenance` is redundant while repo and package are public, but we pass
+      # it explicitly so a release FAILS if an attestation cannot be produced,
+      # instead of silently shipping unsigned.
+      - name: Publish every workspace package that is not on npm yet
+        run: |
+          set -euo pipefail
+          # One package today; the loop keeps the mechanism correct as packages/*
+          # grows (publish order starts to matter the day one depends on another).
+          for dir in packages/*; do
+            [ -f "$dir/package.json" ] || continue
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            # A public, unauthenticated registry read — it works with no token set.
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "::notice::$name@$version is already published — skipping."
+            else
+              echo "publishing $name@$version"
+              npm publish --provenance --access public --workspace "$name"
+            fi
+          done
