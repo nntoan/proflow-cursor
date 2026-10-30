@@ -46,7 +46,7 @@ describe("registry contract", () => {
 });
 
 describe("disable-third-party-plugins", () => {
-  it("rewrites all four gate sites on the fixture", () => {
+  it("rewrites all gate sites on the fixture", () => {
     const inst = mkInst();
     const report = applyOne("disable-third-party-plugins", inst);
     expect(report.status).toBe("applied");
@@ -54,14 +54,36 @@ describe("disable-third-party-plugins", () => {
     expect(index).toContain(".importThirdPartyPlugins&&!1||(");
     expect(index).toContain("a=!1,");
     expect(index).not.toContain("a=s.importThirdPartyPlugins,");
-    // home scan list: third-party dirs dropped, .cursor dirs and .agents kept
-    expect(index).not.toContain('[".claude","skills"]');
-    expect(index).not.toContain('[".codex","skills"]');
-    expect(index).toContain('[".agents","skills"]');
-    expect(index).toContain('[".cursor","skills"]');
+    // Ys chokepoint: skill-root computation always excludes thirdParty entries
+    expect(index).toContain("Ds.filter((e=>!e.builtin&&!e.thirdParty))");
     const headless = readFileSync(path.join(inst.path, "3863.index.js"), "utf8");
     expect(headless).toContain("he=!1");
   });
+
+  it("filters EVERY scan-list literal to the keep policy, in every bundle file", () => {
+    const inst = mkInst();
+    const report = applyOne("disable-third-party-plugins", inst);
+    expect(report.status).toBe("applied");
+
+    // tuple form (main bundle) and path-string form (webpack chunk): the same
+    // policy must hold in both serializations — 0.1.3 proved that patching
+    // only one copy changes nothing the user can see.
+    const index = readFileSync(path.join(inst.path, "index.js"), "utf8");
+    const chunk = readFileSync(path.join(inst.path, "8008.index.js"), "utf8");
+
+    // policy assertion is name-free: whatever roots existed before, only
+    // .cursor and .agents entries may remain, in their original relative order
+    expect(index).toContain(
+      'SCAN=[[".cursor","skills"],[".cursor","skills-cursor"],[".agents","skills"],[".cursor","plugins"]]',
+    );
+    expect(chunk).toContain('SKILL_PATHS=[".cursor/skills/",".cursor/plugins/",".agents/skills/"]');
+
+    // property check: no scan-list entry outside the keep set survives anywhere
+    const tupleRoots = [...index.matchAll(/\["(\.[^"]+)","[^"]*"\]/g)].map((m) => m[1]);
+    const pathRoots = [...chunk.matchAll(/"(\.[^"/]+)\/[^"]*"/g)].map((m) => m[1]);
+    expect(new Set([...tupleRoots, ...pathRoots])).toEqual(new Set([".cursor", ".agents"]));
+  });
+
 });
 
 describe("disable-third-party-extensibility", () => {

@@ -22,10 +22,13 @@ function base(id: string, description: string): Pick<Patch, "id" | "description"
   return { id, description, verifiedVersions: [VERIFIED_VERSION] };
 }
 
+/** Skill/plugin scan-list keep policy: Cursor-native dirs + the cross-harness standard. */
+export const SCAN_LIST_KEEP = [".cursor", ".agents"];
+
 /** disable-third-party-plugins: force importThirdPartyPlugins false at every gate. */
 const disableThirdPartyPlugins: RegistryEntry = {
   id: "disable-third-party-plugins",
-  description: "Never import third-party (claude/codex/grok) plugins or skills (.agents kept)",
+  description: "Never import third-party plugins or skills (scan lists keep only .cursor + .agents)",
   defaultEnabled: true,
   build: () => ({
     ...base("disable-third-party-plugins", "Force importThirdPartyPlugins false"),
@@ -45,16 +48,34 @@ const disableThirdPartyPlugins: RegistryEntry = {
             find: /([a-zA-Z$_])=[a-zA-Z$_]+\.importThirdPartyPlugins,/,
             replace: "$1=!1,",
           },
-          // user-local home scan list: drop third-party dirs (.claude skills+plugins,
-          // .codex, .grok) — keep .cursor dirs and .agents (harness interop).
-          // This list is NOT gated by importThirdPartyPlugins; without this edit,
-          // ~/.claude/skills commands (e.g. /gsd-*) still surface in the CLI.
+          // skill-root policy chokepoint: every skill-root computation (the
+          // workspace + home root builders in this bundle, and every chunk
+          // importing them — e.g. the slash-command registry loader) flows
+          // through Ys, which filters the Ds dir table by its own `thirdParty`
+          // metadata. Forcing thirdParty exclusion here makes the keep-policy
+          // hold no matter which extensibility flag any caller injects (the
+          // DI default is ()=>!0, and the obvious gate sites do NOT reach
+          // this service). Name-free: the table itself marks .cursor/.agents
+          // thirdParty:!1 and every other harness thirdParty:!0, so dirs
+          // added by future upstream releases are excluded automatically.
           {
             kind: "string",
-            find: '[".claude","skills"],[".claude","plugins"],[".codex","skills"],[".grok","skills"],',
-            replace: "",
+            find: "Ds.filter((e=>!e.builtin&&(t||!e.thirdParty)))",
+            replace: "Ds.filter((e=>!e.builtin&&!e.thirdParty))",
           },
         ],
+      },
+      {
+        // User-local skill/plugin scan lists. The same literal exists in the
+        // main bundle (tuple form) AND in hash-named webpack chunks (path-string
+        // form), so it is found by shape across every .js file — addressing a
+        // chunk by name would both miss copies and break on every release.
+        // These lists are NOT gated by importThirdPartyPlugins; without this
+        // filter, third-party harness skills still surface in the CLI.
+        // Policy is a keep-list: .cursor (first-party) + .agents (cross-harness
+        // standard) survive; every other root is dropped, whatever its name.
+        file: "*.js",
+        anchors: [{ kind: "scan-list-filter", keep: SCAN_LIST_KEEP }],
       },
       {
         file: "3863.index.js",

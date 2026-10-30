@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { applyPatches } from "../../src/engine/patcher.js";
 import { isVerified, unverifiedWarning } from "../../src/engine/versionGate.js";
@@ -226,6 +226,107 @@ describe("applyPatches anchors", () => {
       ["bad", "failed"],
       ["good", "applied"],
     ]);
+  });
+});
+
+describe("scan-list-filter anchor", () => {
+  const KEEP = [".cursor", ".agents"];
+  function filterPatch(id: string, file = "*.js"): Patch {
+    return patch({
+      id,
+      files: [{ file, anchors: [{ kind: "scan-list-filter", keep: KEEP }] }],
+    });
+  }
+
+  it("wildcard filters both literal forms across every bundle file", () => {
+    const inst = mkInst();
+    const [report] = applyPatches(inst, [filterPatch("sl1")]);
+    expect(report?.status).toBe("applied");
+    const changed = report?.changes.map((c) => c.file).sort();
+    expect(changed).toEqual(["8008.index.js", "index.js"]);
+    expect(read(inst, "index.js")).toContain(
+      'SCAN=[[".cursor","skills"],[".cursor","skills-cursor"],[".agents","skills"],[".cursor","plugins"]]',
+    );
+    expect(read(inst, "8008.index.js")).toContain(
+      'SKILL_PATHS=[".cursor/skills/",".cursor/plugins/",".agents/skills/"]',
+    );
+  });
+
+  it("idempotent: second apply is a no-op success (not a 'not found' failure)", () => {
+    const inst = mkInst();
+    const [first] = applyPatches(inst, [filterPatch("sl2")]);
+    expect(first?.status).toBe("applied");
+    const [second] = applyPatches(inst, [filterPatch("sl2")]);
+    expect(second?.status).toBe("applied");
+    expect(second?.changes).toEqual([]);
+  });
+
+  it("FAILED loudly when no scan-list literal exists anywhere (upstream restructure)", () => {
+    const inst = mkInst();
+    // strip both literals to simulate a bundle that no longer has them
+    const idx = path.join(inst.path, "index.js");
+    writeFileSync(
+      idx,
+      read(inst, "index.js").replace(
+        '[[".cursor","skills"],[".cursor","skills-cursor"],[".otherharness","skills"],[".otherharness","plugins"],[".xyzagent","skills"],[".agents","skills"],[".cursor","plugins"]]',
+        '[]',
+      ),
+    );
+    const chunk = path.join(inst.path, "8008.index.js");
+    writeFileSync(
+      chunk,
+      read(inst, "8008.index.js").replace(
+        '[".cursor/skills/",".cursor/plugins/",".otherharness/skills/",".otherharness/plugins/",".xyzagent/skills/",".agents/skills/"]',
+        '[]',
+      ),
+    );
+    const [report] = applyPatches(inst, [filterPatch("sl3")]);
+    expect(report?.status).toBe("failed");
+    expect(report?.failures[0]?.reason).toMatch(/no scan-list literal found/);
+  });
+
+  it("lookalike arrays survive: no first-party entry => not a scan list", () => {
+    const inst = mkInst();
+    const extra = path.join(inst.path, "5622.index.js");
+    const lookalikes =
+      'var LOOK=[[".otherharness","skills"],[".xyzagent","plugins"]];var SINGLE=[".agents/skills/"];\n';
+    writeFileSync(extra, lookalikes + read(inst, "5622.index.js"));
+    const [report] = applyPatches(inst, [filterPatch("sl4")]);
+    expect(report?.status).toBe("applied");
+    expect(read(inst, "5622.index.js")).toContain(lookalikes.trim());
+    // and the lookalike file was not among the modified files
+    expect(report?.changes.map((c) => c.file)).not.toContain("5622.index.js");
+  });
+
+  it("wildcard rejects non-scan-list-filter anchors", () => {
+    const inst = mkInst();
+    const [report] = applyPatches(inst, [
+      patch({
+        id: "sl5",
+        files: [{ file: "*.js", anchors: [{ kind: "string", find: "x", replace: "y" }] }],
+      }),
+    ]);
+    expect(report?.status).toBe("failed");
+    expect(report?.failures[0]?.reason).toMatch(/only scan-list-filter/);
+  });
+
+  it("rejects unsupported wildcard patterns", () => {
+    const inst = mkInst();
+    const [report] = applyPatches(inst, [
+      patch({
+        id: "sl6",
+        files: [{ file: "chunks/*.js", anchors: [{ kind: "scan-list-filter", keep: KEEP }] }],
+      }),
+    ]);
+    expect(report?.status).toBe("failed");
+    expect(report?.failures[0]?.reason).toMatch(/unsupported file wildcard/);
+  });
+
+  it("non-wildcard file with no literal fails the patch", () => {
+    const inst = mkInst();
+    const [report] = applyPatches(inst, [filterPatch("sl7", "5622.index.js")]);
+    expect(report?.status).toBe("failed");
+    expect(report?.failures[0]?.reason).toMatch(/no scan-list literal found/);
   });
 });
 

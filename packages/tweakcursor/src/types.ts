@@ -1,9 +1,23 @@
 export type Anchor =
   | { kind: "string"; find: string; replace: string; index?: number }
-  | { kind: "regex"; find: RegExp; replace: string; index?: number };
+  | { kind: "regex"; find: RegExp; replace: string; index?: number }
+  | {
+      kind: "scan-list-filter";
+      /**
+       * Root segments to keep (e.g. [".cursor", ".agents"]). Every other entry
+       * in a detected skill/plugin scan-list literal is dropped, whatever its
+       * name — the policy is a keep-list, never a blocklist of specific names.
+       */
+      keep: string[];
+    };
 
 export interface FilePatch {
-  /** Path relative to the installation root. */
+  /**
+   * Path relative to the installation root, or the wildcard "*.js" meaning all
+   * top-level JS files in the install dir (scan-list-filter anchors only —
+   * webpack duplicates literals into hash-named chunks, so they must be found
+   * by shape, not addressed by file name).
+   */
   file: string;
   anchors: Anchor[];
 }

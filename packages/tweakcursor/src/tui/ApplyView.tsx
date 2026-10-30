@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 import { createBackup, hasBackup, restoreBackup } from "../engine/backup.js";
 import { writeCliConfig, defaultCliConfigPath } from "../engine/cliConfig.js";
 import type { Installation } from "../engine/discovery.js";
-import { applyPatches } from "../engine/patcher.js";
+import { applyPatches, resolvePatchFiles } from "../engine/patcher.js";
 import { smokeTest } from "../engine/verify.js";
 import { isVerified } from "../engine/versionGate.js";
 import { enabledPatches } from "../patches/registry.js";
@@ -44,7 +44,7 @@ export async function runApply(
     restoreBackup(install);
     say("restored pristine files from backup");
   }
-  const relFiles = [...new Set(patches.flatMap((p) => p.files.map((f) => f.file)))];
+  const relFiles = resolvePatchFiles(install, patches);
   createBackup(install, relFiles);
 
   const reports = applyPatches(install, patches);

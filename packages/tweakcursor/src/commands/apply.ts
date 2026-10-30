@@ -2,7 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { createBackup, hasBackup, restoreBackup } from "../engine/backup.js";
 import { writeCliConfig } from "../engine/cliConfig.js";
 import { detectInstallation } from "../engine/discovery.js";
-import { applyPatches } from "../engine/patcher.js";
+import { applyPatches, resolvePatchFiles } from "../engine/patcher.js";
 import { smokeTest } from "../engine/verify.js";
 import { isVerified, unverifiedWarning } from "../engine/versionGate.js";
 import { enabledPatches, getEntry } from "../patches/registry.js";
@@ -105,7 +105,7 @@ export async function apply(opts: ApplyOptions): Promise<number> {
     const restored = restoreBackup(install);
     log.debug(`restored pristine files: ${restored.join(", ")}`);
   }
-  const relFiles = [...new Set(patches.flatMap((p) => p.files.map((f) => f.file)))];
+  const relFiles = resolvePatchFiles(install, patches);
   const backed = createBackup(install, relFiles);
   if (backed.length > 0) log.debug(`backup created: ${backed.join(", ")}`);
 
