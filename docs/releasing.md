@@ -4,27 +4,34 @@ Runbook for the **initial release** of any workspace package to npm. Follow top 
 bottom; check boxes in a tracking issue or the release notes. For subsequent
 releases of an already-published package, skip to [Phase C](#phase-c--ship).
 
-Current state of this repo: CI (`.github/workflows/ci.yml`) and a tag-triggered
-OIDC release workflow (`.github/workflows/release.yml`) exist but have never run —
-**there is no git remote yet**. Phase 0 is therefore mandatory here.
+Current state of this repo: the remote exists (`nntoan/proflow-cursor`, public)
+with `main` pushed, and the release mechanism is ported from `nntoan/proflow`
+(tag → generated notes + GitHub release → OIDC publish). No tag has been pushed
+yet, and the npm trusted publisher is not configured — Phases B–C remain
+mandatory.
 
 ---
 
 ## Phase 0 — one-time repo setup
 
-- [ ] **Create the git remote** and push `main` (workflows, provenance, and the
-      `repository` field all depend on it):
-  ```bash
-  gh repo create {org}/{repo} --private --source . --push   # or --public
-  ```
-- [ ] **Decide npm auth** (pick one):
-  - **OIDC trusted publisher (recommended)** — no long-lived token. On npmjs.com:
-    package → Settings → Trusted Publisher → GitHub Actions → repo +
-    `.github/workflows/release.yml`. Requires one manual first publish to create
-    the package (see Phase B), then provenance publishes work tokenlessly.
-  - **NPM_TOKEN secret** — granular access token (automation, 2FA-bypass) stored
-    as the `NPM_TOKEN` repo secret; the release workflow picks it up via
-    `registry-url`.
+- [x] **Create the git remote** and push `main` — done: `nntoan/proflow-cursor`
+      (public).
+- [ ] **Configure the npm trusted publisher** (OIDC — there is deliberately no
+      `NPM_TOKEN` in this repo). Requires the package to exist first (Phase B
+      squat publish), then on npmjs.com: package → Settings → **Trusted
+      publishing** → GitHub Actions:
+
+  | Field | Value |
+  | --- | --- |
+  | Organization or user | `nntoan` |
+  | Repository | `proflow-cursor` |
+  | Workflow filename | `release.yml` (filename only; must exist in `.github/workflows/`) |
+  | Allowed actions | tick **Allow npm publish** |
+
+  Two things to know: since 2026-09-03 new trusted-publisher configs are created
+  **stage-only** unless *Allow npm publish* is ticked (unticked → `ENEEDAUTH` at
+  publish time), and a config **cannot be edited** after creation — delete and
+  re-add to change it. All fields are case-sensitive and unvalidated at save.
 - [ ] **Protect `main`** (optional but recommended): require the `ci` matrix
       (macOS/Linux × Node 20/22/24) before merge.
 
@@ -71,25 +78,37 @@ Run for the package being released (`{pkg}` = workspace name, e.g. `tweakcursor`
 
 ## Phase B — name protection (new names, recommended)
 
-- [ ] **Squat early**: publish a minimal `0.0.1` as soon as the name check passes,
-      before the full release is ready. This also creates the npm package page so
-      the OIDC trusted publisher can be configured.
-- [ ] If using OIDC: finish trusted-publisher setup on the new package page now.
+- [x] **Squat early** — done 2026-10-30: `tweakcursor` published by hand
+      (`0.0.0-stage`, then `0.1.0`; maintainer `nntoan`). The package page now
+      exists, so the OIDC trusted publisher can be configured.
+- [ ] If using OIDC: finish trusted-publisher setup on the package page now
+      (Phase 0 table). Note: tagging `v0.1.0` later is safe — the workflow will
+      create the GitHub release and notes, and skip the already-published
+      `0.1.0` on npm.
 
 ## Phase C — ship
 
 - [ ] **CI green on `main`** (push/PR first; `gh run watch`).
-- [ ] **Bump the version** in `packages/{pkg}/package.json` (semver; initial
-      release stays `0.1.0` unless a `0.0.x` squat exists — then `0.1.0` anyway).
-- [ ] **Commit and tag.** Convention here: `v{version}` while one package exists;
-      switch to `{pkg}@{version}` tags when a second package ships (and update
-      `release.yml`'s `on.push.tags` and `-w {pkg}` target accordingly — it is
-      currently wired for `tweakcursor` only):
+- [ ] **Preview the release notes** — generated from the conventional commits
+      since the previous tag (no previous tag → everything up to the release):
   ```bash
-  git add -A && git commit -m "release: {pkg} v0.1.0"
-  git tag v0.1.0 && git push origin main --tags
+  node scripts/changelog.mjs --to HEAD
   ```
-- [ ] **Release workflow publishes** (`npm publish --provenance`):
+- [ ] **Bump and tag** — the tag MUST equal `packages/{pkg}/package.json`
+      `version`; a mismatch creates the GitHub release but skips publishing
+      (that path exists for retroactive tags). Convention here: `v{version}`
+      while one package exists; switch to `{pkg}@{version}` tags when a second
+      package ships (and update `release.yml` accordingly):
+  ```bash
+  npm version 0.1.0 -w {pkg} --no-git-tag-version
+  git add -A && git commit -m "chore(release): 0.1.0"
+  git tag -a v0.1.0 -m "{pkg} 0.1.0"
+  git push origin main --follow-tags
+  ```
+- [ ] **Release workflow runs both jobs** — `release` (generated notes + GitHub
+      release), then `publish` (npm over OIDC, only when the tag matches the
+      version; `--provenance` is passed explicitly so a release **fails** rather
+      than ship unsigned):
   ```bash
   gh run watch               # release.yml
   ```
@@ -102,7 +121,8 @@ Run for the package being released (`{pkg}` = workspace name, e.g. `tweakcursor`
 
 ## Phase D — after
 
-- [ ] Record release notes in `docs/releases/v{version}.md` (see `v0.1.0.md`).
+- [ ] The GitHub release is auto-created with generated notes; record any
+      curated deep-dive in `docs/releases/v{version}.md` (see `v0.1.0.md`).
 - [ ] Close/label the tracking issue; note follow-ups for the next milestone.
 
 ## Kill switch
