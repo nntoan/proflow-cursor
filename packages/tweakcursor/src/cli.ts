@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { apply } from "./commands/apply.js";
 import { doctor } from "./commands/doctor.js";
@@ -6,7 +7,11 @@ import { listPatches } from "./commands/listPatches.js";
 import { restore } from "./commands/restore.js";
 import { log, setDebug } from "./ui/log.js";
 
-const VERSION = "0.1.0";
+// Version is read from the installed package.json (dist/cli.js -> ../package.json),
+// never hardcoded: a stale constant shipped in the 0.1.1 tarball reporting 0.1.0.
+const { version: VERSION } = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
 
 interface GlobalOpts {
   apply?: boolean;

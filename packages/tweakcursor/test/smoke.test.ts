@@ -23,6 +23,11 @@ describe("scaffold smoke", () => {
     const out = execFileSync(process.execPath, [distCli, "--version"], {
       encoding: "utf8",
     });
-    expect(out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+    // release gate: --version must equal the manifest version (0.1.1 shipped a
+    // hardcoded 0.1.0 once)
+    const pkg = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "utf8")) as {
+      version: string;
+    };
+    expect(out.trim()).toBe(pkg.version);
   });
 });
